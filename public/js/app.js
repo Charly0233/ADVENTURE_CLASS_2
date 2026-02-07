@@ -314,7 +314,8 @@ function renderStudentCards() {
   const filteredStudents = allStudents.filter(student => {
     const matchesGuild = guildFilter === 'all' || student.groupId === guildFilter;
     const matchesSearch = student.displayName.toLowerCase().includes(searchTerm) || 
-                          student.email.toLowerCase().includes(searchTerm);
+                          student.email.toLowerCase().includes(searchTerm) ||
+                          (student.nickname && student.nickname.toLowerCase().includes(searchTerm));
     return matchesGuild && matchesSearch;
   });
   
@@ -2985,7 +2986,8 @@ function showAddXpToPartyModal() {
       const searchLower = currentSearchTerm.toLowerCase();
       filteredStudents = filteredStudents.filter(s => 
         s.displayName.toLowerCase().includes(searchLower) ||
-        s.email.toLowerCase().includes(searchLower)
+        s.email.toLowerCase().includes(searchLower) ||
+        (s.nickname && s.nickname.toLowerCase().includes(searchLower))
       );
     }
     
@@ -3742,7 +3744,8 @@ function showEditStudentModal() {
       filteredStudents = allStudents.filter(s => 
         s.displayName.toLowerCase().includes(searchLower) ||
         s.email.toLowerCase().includes(searchLower) ||
-        (s.groupId && s.groupId.toLowerCase().includes(searchLower))
+        (s.groupId && s.groupId.toLowerCase().includes(searchLower)) ||
+  (s.nickname && s.nickname.toLowerCase().includes(searchLower))
       );
     }
     

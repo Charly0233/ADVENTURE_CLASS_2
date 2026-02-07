@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ✅ PWA: Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <!-- ✅ PWA: Theme color (barra superior en móvil) -->
+    <meta name="theme-color" content="#00f0ff">
+    <!-- ✅ PWA: Apple touch icon -->
+    <link rel="apple-touch-icon" href="/images/icon-192x192.png">
+    <!-- ✅ PWA: Descripción para búsquedas -->
+    <meta name="description" content="Sistema de gamificación para el salón de clases">  
     <title>Class Adventure - Login</title>
     <link rel="stylesheet" href="styles-v2.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -928,5 +936,21 @@ document.getElementById('onboarding-form').addEventListener('submit', async (e) 
         }, 5000);
     }
 </script>
+
+<!-- ✅ PWA: Registrar Service Worker -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('✅ Service Worker registrado:', registration);
+        })
+        .catch(error => {
+          console.log('❌ Error registrando Service Worker:', error);
+        });
+    });
+  }
+</script>
+
 </body>
 </html>
