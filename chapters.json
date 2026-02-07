@@ -1,0 +1,23 @@
+[
+  {
+    "id": "chapter-1",
+    "name": "Parcial 1",
+    "specialHpCost": 3,
+    "active": false,
+    "special lucky spin": "helping-Hand"
+  },
+  {
+    "id": "chapter-2",
+    "name": "Parcial 2",
+    "specialHpCost": 6,
+    "active": true,
+    "special lucky spin": "overdrive"
+  },
+  {
+    "id": "chapter-3",
+    "name": "Parcial 3",
+    "specialHpCost": 12,
+    "active": false,
+    "special lucky spin": "time-warp"
+  }
+]

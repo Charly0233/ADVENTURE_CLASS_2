@@ -1,0 +1,66 @@
+[
+  {
+    "id": "heal-point",
+    "name": "Heal Point",
+    "cost": 5,
+    "description": "Recupera 1 punto de vida (1pt in activities)",
+    "icon": "❤️",
+    "chapter":"all"
+  },
+  {
+    "id": "apparition",
+    "name": "Apparition",
+    "cost": 10,
+    "description": "Encontraste una estrella fugaz y pediste un deseo: haber ido a la clase que te perdiste (justifica 1 ausencia)",
+    "icon": "✨",
+    "chapter":"all"
+  },
+  {
+    "id": "whisper-of-tuly",
+    "name": "Whisper of Tuly",
+    "cost": 30,
+    "description": "Tuly se apiada de ti y le dice a charly que te acepte una actividad atrasada",
+    "icon": "🔮",
+    "chapter":"all"
+  },
+  {
+    "id": "large-heal-potion",
+    "name": "Large Heal Potion",
+    "cost": 30,
+    "description": "Poción de curación grande (5pt in activities)",
+    "icon": "🧪",
+    "chapter":"all"
+  },
+  {
+    "id": "transmutation",
+    "name": "Transmutation",
+    "cost": 50,
+    "description": "Este hechizo te permite transformar una actividad entregada para mejorarla",
+    "icon": "⚗️",
+    "chapter":"all"
+  },
+  {
+    "id": "overdrive",
+    "name": "Overdrive",
+    "cost": 50,
+    "description": "Aumenta tu velocidad brevemente para que charly no note un error en tu presentacion",
+    "icon": "🚀",
+    "chapter":"chapter-2"
+  },
+  {
+    "id": "helping-hand",
+    "name": "Helping Hand",
+    "cost": 50,
+    "description": "Invoca a tuly para responder una pregunta en el examen",
+    "icon": "🖐️",
+    "chapter":"chapter-1"
+  },
+  {
+    "id": "time-warp",
+    "name": "Time Warp",
+    "cost": 80,
+    "description": "Aparece tuly con una maquina del tiempo y retrocede un avance de projecto una semana",
+    "icon": "⏳",
+    "chapter":"chapter-3"
+  }
+]
