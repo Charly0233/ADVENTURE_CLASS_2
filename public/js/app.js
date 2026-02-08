@@ -519,12 +519,25 @@ function createStudentCard(student) {
   // Determinar color del XP (rojo si es negativo)
   const xpColor = xp < 0 ? '#ff4757' : 'var(--neon-cyan)';
   
+  // ✅ AGREGAR: Avatar con fallback
+  const avatarUrl = student.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.displayName)}&background=00f0ff&color=0a0e27&size=128`;
+  
   card.innerHTML = `
     <div class="student-header">
-      <div>
+      <!-- ✅ AGREGAR: Avatar -->
+      <div class="student-card-avatar">
+        <img src="${avatarUrl}" 
+             alt="${student.displayName}"
+             onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.displayName)}&background=00f0ff&color=0a0e27&size=128'">
+      </div>
+      
+      <!-- ✅ MODIFICAR: Agrupar info -->
+      <div class="student-header-info">
         <div class="student-name">${student.displayName}</div>
+        <div class="student-nickname">@${student.nickname || 'Sin nickname'}</div>
         <div class="student-guild">🛡️ ${guild}</div>
       </div>
+      
       <div class="student-level ${hasSpinsClass}">Lvl ${level}</div>
     </div>
     
@@ -569,8 +582,7 @@ function createStudentCard(student) {
     </div>
   `;
   
-  // ✅ AGREGAR EVENT LISTENERS DESPUÉS DE CREAR EL HTML
-  // Importante: usar setTimeout para asegurar que el DOM esté listo
+  // El resto del código sigue igual...
   setTimeout(() => {
     const addXpBtn = card.querySelector('.add-xp');
     const removeXpBtn = card.querySelector('.remove-xp');
@@ -581,7 +593,7 @@ function createStudentCard(student) {
     
     if (addXpBtn) {
       addXpBtn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Evitar que se propague al card
+        e.stopPropagation();
         showAddXpModal(student);
       });
     }
@@ -614,7 +626,6 @@ function createStudentCard(student) {
       });
     }
 
-    // Después de los otros botones
     if (deleteBtn) {
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -623,10 +634,8 @@ function createStudentCard(student) {
     }
   }, 0);
   
-  // Click en la tarjeta para abrir perfil
   card.style.cursor = 'pointer';
   card.addEventListener('click', (e) => {
-    // Solo abrir perfil si NO se hizo clic en un botón de acción
     if (!e.target.closest('.card-action-btn')) {
       showStudentProfile(student);
     }
