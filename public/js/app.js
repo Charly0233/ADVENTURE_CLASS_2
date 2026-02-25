@@ -1705,10 +1705,12 @@ async function buySpellForStudent(studentId, spell) {
       spellId: spell.id,
       spellName: spell.name,
       cost: spell.cost,
+      amount: -spell.cost,  // ✅ AGREGAR (negativo porque es gasto)
+      reason: `Hechizo comprado: ${spell.name}`,  // ✅ AGREGAR
       performedBy: auth.currentUser.uid,
       oldBalance: currentXP,
       newBalance: newXP,
-      buyTime: new Date()
+      timestamp: new Date()  // ✅ CAMBIAR 'buyTime' por 'timestamp'
     });
     
     // Ejecutar todas las operaciones
@@ -1895,16 +1897,19 @@ function loadStudentSpells(student) {
   }
   
   spellsContainer.innerHTML = studentSpells
-    .filter(spell => !spell.transferred) // ✅ Filtrar hechizos transferidos
-    .map(spell => {
+    .filter(spell => !spell.transferred)
+    .map((spell, index) => {  // ✅ AGREGAR index
       const statusClass = spell.casted ? 'spell-used' : 'spell-available';
       const statusText = spell.casted ? 'Usado' : 'Disponible';
       
-      // ✅ Buscar la descripción en availableSpells
       const spellInfo = availableSpells.find(s => s.id === spell.spellId);
       const description = spellInfo ? spellInfo.description : 'Hechizo especial';
       
-      // ✅ Mostrar de dónde vino el hechizo
+      // ✅ AGREGAR: Calcular si se puede deshacer (solo comprado y no usado)
+      const canUndo = !spell.casted && !spell.obtainedFrom;  // Solo comprados (no de lucky_spin, gift, etc)
+      const costRefund = spellInfo ? spellInfo.cost : 0;
+      
+      // ✅ AGREGAR: Badges de origen
       let originBadge = '';
       if (spell.obtainedFrom === 'lucky_spin') {
         originBadge = '<span style="background: rgba(255, 215, 0, 0.2); color: #ffd700; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">🎲 Lucky Spin</span>';
@@ -1922,18 +1927,33 @@ function loadStudentSpells(student) {
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0;">${description}</p>
             <span class="spell-status">${statusText}</span>
           </div>
-            ${!spell.casted ? `<button class="btn-cast-spell" data-spell-id="${spell.spellId}" data-student-id="${student.id}">Usar</button>` : ''}
+          ${canUndo ? `
+            <button 
+              class="btn-undo-spell" 
+              data-student-id="${student.id}"
+              data-spell-index="${index}"
+              data-spell-cost="${costRefund}"
+              title="Deshacer compra (+${costRefund} XP)"
+              style="padding: 0.5rem 1rem; background: rgba(255, 107, 107, 0.2); border: 1px solid #ff6b6b; border-radius: 8px; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-top: 0.5rem;">
+              ↩️ Deshacer (+${costRefund} XP)
+            </button>
+          ` : ''}
         </div>
       `;
     }).join('');
   
-  spellsContainer.querySelectorAll('.btn-cast-spell').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const spellId = btn.dataset.spellId;
-    const studentId = btn.dataset.studentId;
-    showCastSpellModal(studentId, spellId);
+  // ✅ AGREGAR: Event listeners para botones de deshacer
+  document.querySelectorAll('.btn-undo-spell').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const studentId = btn.dataset.studentId;
+      const spellIndex = parseInt(btn.dataset.spellIndex);
+      const spellCost = parseInt(btn.dataset.spellCost);
+      const spell = studentSpells[spellIndex];
+      
+      await undoSpellPurchase(studentId, spell, spellCost);
+    });
   });
-});
 }
 
 // ============================================
@@ -2018,43 +2038,65 @@ function showCastSpellModal(studentId, spellId) {
   };
 }
 
-// ============================================
-// USAR HECHIZO
-// ============================================
+  // ============================================
+  // USAR HECHIZO
+  // ============================================
 
-async function castSpell(studentId, spell, reason) {
-  try {
-    const studentRef = doc(db, 'users', studentId);
-    const studentSnap = await getDoc(studentRef);
-    const studentData = studentSnap.data();
-    
-    // Marcar el hechizo como usado
-    const updatedSpells = (studentData.spells || []).map(s => {
-      if (s.spellId === spell.spellId && 
-          s.purchasedAt.toMillis() === spell.purchasedAt.toMillis() && 
-          !s.casted) {
-        return {
-          ...s,
-          casted: true,
-          castedAt: new Date(),
-          castedReason: reason
-        };
-      }
-      return s;
-    });
-    
-    await updateDoc(studentRef, {
-      spells: updatedSpells,
-      lastUpdated: serverTimestamp()
-    });
-    
-    showNotification(`✅ ${spell.spellIcon} ${spell.spellName} usado correctamente`, 'success');
-    
-  } catch (error) {
-    console.error('Error usando hechizo:', error);
-    showNotification('❌ Error al usar hechizo', 'error');
+  async function castSpell(studentId, spell, reason) {
+    try {
+      const studentRef = doc(db, 'users', studentId);
+      const transactionsRef = collection(db, 'transactions');  // ✅ AGREGAR
+      
+      const studentSnap = await getDoc(studentRef);
+      const studentData = studentSnap.data();
+      
+      // Marcar el hechizo como usado
+      const updatedSpells = (studentData.spells || []).map(s => {
+        if (s.spellId === spell.spellId && 
+            s.purchasedAt.toMillis() === spell.purchasedAt.toMillis() && 
+            !s.casted) {
+          return {
+            ...s,
+            casted: true,
+            castedAt: new Date(),
+            castedReason: reason
+          };
+        }
+        return s;
+      });
+      
+      // ✅ AGREGAR: Usar batch para operaciones atómicas
+      const batch = writeBatch(db);
+      
+      // 1. Actualizar spells del estudiante
+      batch.update(studentRef, {
+        spells: updatedSpells,
+        lastUpdated: serverTimestamp()
+      });
+      
+      // 2. ✅ CREAR TRANSACCIÓN
+      const transactionRef = doc(transactionsRef);
+      batch.set(transactionRef, {
+        userId: studentId,
+        type: 'spell_use',
+        spellId: spell.spellId,
+        spellName: spell.spellName,
+        amount: 0,  // No cambia XP, pero se registra
+        reason: `Hechizo usado: ${spell.spellName} - ${reason}`,
+        performedBy: auth.currentUser.uid,
+        timestamp: serverTimestamp()
+      });
+      
+      // ✅ EJECUTAR BATCH
+      await batch.commit();
+      
+      showNotification(`✅ ${spell.spellIcon} ${spell.spellName} usado correctamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error usando hechizo:', error);
+      showNotification('❌ Error al usar hechizo', 'error');
+    }
   }
-}
 
 // ============================================
 // CARGAR TRANSACCIONES DEL ALUMNO
@@ -2119,6 +2161,8 @@ function getTransactionTypeLabel(type) {
     'guild_xp_add': '🛡️ XP de Guild',
     'party_xp_add': '👥 XP de Party',
     'spell_purchase': '🪄 Compra Hechizo',
+    'spell_use':"🪄⚡️: Uso hechizo",
+    'spell_refund':'↩️ Devolución de Hechizo',
     'hp_purchase': '❤️ Compra HP',
     'special_hp_purchase': '✨ Compra Special HP',
     'lucky_spin': '🎲 Lucky Spin',
@@ -4497,5 +4541,86 @@ async function deleteStudent(studentId) {
   } catch (error) {
     console.error('Error eliminando estudiante:', error);
     showNotification('❌ Error al eliminar estudiante', 'error');
+  }
+}
+
+// ============================================
+// DESHACER COMPRA DE HECHIZO
+// ============================================
+
+async function undoSpellPurchase(studentId, spell, refundAmount) {
+  const confirmed = confirm(`¿Deshacer la compra de ${spell.spellIcon} ${spell.spellName}?\n\nSe devolverán ${refundAmount} XP al alumno.`);
+  
+  if (!confirmed) return;
+  
+  try {
+    const studentRef = doc(db, 'users', studentId);
+    const transactionsRef = collection(db, 'transactions');
+    
+    // Obtener datos actuales del alumno
+    const studentSnap = await getDoc(studentRef);
+    const studentData = studentSnap.data();
+    const currentXP = studentData.totalXp || 0;
+    const newXP = currentXP + refundAmount;
+    
+    // Calcular niveles
+    const oldLevel = calculateLevel(currentXP);
+    const newLevel = calculateLevel(newXP);
+    const leveledUp = newLevel > oldLevel;
+    
+    // Eliminar el hechizo del array
+    const updatedSpells = (studentData.spells || []).filter(s => 
+      !(s.spellId === spell.spellId && 
+        s.purchasedAt.toMillis() === spell.purchasedAt.toMillis())
+    );
+    
+    // Batch write
+    const batch = writeBatch(db);
+    
+    // 1. Actualizar estudiante
+    const updateData = {
+      totalXp: newXP,
+      currentLevel: newLevel,
+      spells: updatedSpells,
+      lastUpdated: serverTimestamp(),
+      availableRouletteSpins: studentData.availableRouletteSpins
+    };
+    
+    // Si subió de nivel al devolver XP
+    if (leveledUp) {
+      const levelsGained = newLevel - oldLevel;
+      const newSpins = (studentData.availableRouletteSpins || 0) + levelsGained;
+      updateData.availableRouletteSpins = newSpins;
+    }
+    
+    batch.update(studentRef, updateData);
+    
+    // 2. Crear transacción
+    const transactionRef = doc(transactionsRef);
+    batch.set(transactionRef, {
+      userId: studentId,
+      type: 'spell_refund',
+      spellId: spell.spellId,
+      spellName: spell.spellName,
+      amount: refundAmount,  // Positivo porque es devolución
+      reason: `Compra de hechizo deshecha: ${spell.spellName}`,
+      performedBy: auth.currentUser.uid,
+      oldBalance: currentXP,
+      newBalance: newXP,
+      timestamp: serverTimestamp()
+    });
+    
+    // Ejecutar batch
+    await batch.commit();
+    
+    if (leveledUp) {
+      showNotification(`✅ Compra deshecha! +${refundAmount} XP. ¡Subiste a nivel ${newLevel}!`, 'success');
+    } else {
+      showNotification(`✅ Compra deshecha! +${refundAmount} XP devueltos`, 'success');
+    }
+    
+  } catch (error) {
+    console.error('Error deshaciendo compra:', error);
+    showNotification('❌ Error al deshacer compra', 'error');
   }
 }
