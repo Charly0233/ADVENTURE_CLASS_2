@@ -1927,17 +1927,28 @@ function loadStudentSpells(student) {
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0;">${description}</p>
             <span class="spell-status">${statusText}</span>
           </div>
-          ${canUndo ? `
-            <button 
-              class="btn-undo-spell" 
-              data-student-id="${student.id}"
-              data-spell-index="${index}"
-              data-spell-cost="${costRefund}"
-              title="Deshacer compra (+${costRefund} XP)"
-              style="padding: 0.5rem 1rem; background: rgba(255, 107, 107, 0.2); border: 1px solid #ff6b6b; border-radius: 8px; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-top: 0.5rem;">
-              ↩️ Deshacer (+${costRefund} XP)
-            </button>
-          ` : ''}
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+            ${!spell.casted ? `
+              <button 
+                class="btn-cast-spell" 
+                data-spell-id="${spell.spellId}" 
+                data-student-id="${student.id}"
+                style="padding: 0.5rem 1rem; background: linear-gradient(135deg, var(--neon-magenta), #9b59b6); border: none; border-radius: 8px; color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                ✨ Usar
+              </button>
+            ` : ''}
+            ${canUndo ? `
+              <button 
+                class="btn-undo-spell" 
+                data-student-id="${student.id}"
+                data-spell-index="${index}"
+                data-spell-cost="${costRefund}"
+                title="Deshacer compra (+${costRefund} XP)"
+                style="padding: 0.5rem 1rem; background: rgba(255, 107, 107, 0.2); border: 1px solid #ff6b6b; border-radius: 8px; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                ↩️ Deshacer (+${costRefund} XP)
+              </button>
+            ` : ''}
+          </div>
         </div>
       `;
     }).join('');
@@ -1952,6 +1963,14 @@ function loadStudentSpells(student) {
       const spell = studentSpells[spellIndex];
       
       await undoSpellPurchase(studentId, spell, spellCost);
+    });
+  });
+  spellsContainer.querySelectorAll('.btn-cast-spell').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const spellId = btn.dataset.spellId;
+      const studentId = btn.dataset.studentId;
+      showCastSpellModal(studentId, spellId);
     });
   });
 }
