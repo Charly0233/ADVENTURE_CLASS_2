@@ -693,15 +693,488 @@ function setupFilters() {
   if (manageGuildsBtn) {
     manageGuildsBtn.addEventListener('click', showManageGuildsModal);
   }
+  // Botón de agregar alumno
+  const addStudentBtn = document.getElementById('add-student-btn');
+  if (addStudentBtn) {
+    addStudentBtn.addEventListener('click', showAddStudentModal);
+  }
 
   // Botón de eliminar todos los alumnos
   const deleteAllBtn = document.getElementById('delete-all-students-btn');
   if (deleteAllBtn) {
     deleteAllBtn.addEventListener('click', showDeleteAllStudentsModal);
   }
+  const randomOrderBtn = document.getElementById('random-order-btn');
+  if (randomOrderBtn) {
+    randomOrderBtn.addEventListener('click', showRandomOrderModal);
+  }
 }
 
+// ============================================
+// MODAL: Agregar Alumno
+// ============================================
+async function showAddStudentModal() {
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalContainer = document.getElementById('modal-container');
 
+  // Opciones de guilds
+  let guildOptions = '<option value="sin-grupo">Sin Guild</option>';
+  allGroups.forEach(guild => {
+    guildOptions += `<option value="${guild}">🛡️ ${guild}</option>`;
+  });
+
+  modalContainer.innerHTML = `
+    <h2 style="font-family: 'Orbitron', sans-serif; color: var(--neon-cyan); margin-bottom: 1.5rem;">
+      ➕ Agregar Alumno
+    </h2>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--neon-cyan); margin-bottom: 0.5rem; text-transform: uppercase;">Nombre completo</label>
+      <input type="text" id="new-student-name" placeholder="Ej: Juan Pérez"
+             style="width: 100%; padding: 0.9rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text-primary); font-size: 1rem;">
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--neon-cyan); margin-bottom: 0.5rem; text-transform: uppercase;">Email</label>
+      <input type="email" id="new-student-email" placeholder="Ej: juan@email.com"
+             style="width: 100%; padding: 0.9rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text-primary); font-size: 1rem;">
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--neon-cyan); margin-bottom: 0.5rem; text-transform: uppercase;">Guild</label>
+      <select id="new-student-guild"
+              style="width: 100%; padding: 0.9rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text-primary); font-size: 1rem;">
+        ${guildOptions}
+      </select>
+    </div>
+
+    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+      <button id="confirm-add-student" style="flex: 1; padding: 1rem; background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta)); border: none; border-radius: 10px; color: #0a0e27; font-family: 'Orbitron', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer;">
+        ➕ Agregar
+      </button>
+      <button id="cancel-modal" style="flex: 1; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid var(--neon-magenta); border-radius: 10px; color: var(--neon-magenta); font-size: 1rem; font-weight: 600; cursor: pointer;">
+        Cancelar
+      </button>
+    </div>
+  `;
+
+  modalOverlay.classList.remove('hidden');
+
+  document.getElementById('confirm-add-student').onclick = async () => {
+    const displayName = document.getElementById('new-student-name').value.trim();
+    const email = document.getElementById('new-student-email').value.trim();
+    const groupId = document.getElementById('new-student-guild').value;
+
+    if (!displayName) {
+      showNotification('⚠️ Ingresa el nombre del alumno', 'warning');
+      return;
+    }
+    if (!email) {
+      showNotification('⚠️ Ingresa el email del alumno', 'warning');
+      return;
+    }
+
+    await createStudentInFirestore(displayName, email, groupId);
+    closeModal();
+  };
+
+  document.getElementById('cancel-modal').onclick = closeModal;
+  modalOverlay.onclick = (e) => {
+    if (e.target.id === 'modal-overlay') closeModal();
+  };
+}
+
+// ============================================
+// CREAR ALUMNO EN FIRESTORE (sin Auth)
+// ============================================
+async function createStudentInFirestore(displayName, email, groupId) {
+  try {
+    const usersRef = collection(db, 'users');
+
+    // Verificar si ya existe un alumno con ese email
+    const existing = allStudents.find(s => s.email === email);
+    if (existing) {
+      showNotification('⚠️ Ya existe un alumno con ese email', 'warning');
+      return;
+    }
+
+    const newStudentRef = doc(usersRef); // ID automático
+    await setDoc(newStudentRef, {
+      email,
+      displayName,
+      nickname: '',
+      lastName: '',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=00f0ff&color=0a0e27&size=128`,
+      groupId,
+      role: 'student',
+      totalXp: 0,
+      earnedHealingPoints: 0,
+      appliedHealingPoints: 0,
+      earnedSpecialHp: 0,
+      appliedSpecialHp: 0,
+      currentLevel: 1,
+      availableRouletteSpins: 0,
+      spells: [],
+      createdAt: serverTimestamp(),
+      lastUpdated: serverTimestamp()
+    });
+
+    showNotification(`✅ ${displayName} agregado correctamente`, 'success');
+    await loadStudents(); // Recargar la lista
+
+  } catch (error) {
+    console.error('Error creando alumno:', error);
+    showNotification('❌ Error al crear el alumno', 'error');
+  }
+}
+
+// ============================================
+// MODAL: Orden Aleatorio de Presentaciones
+// ============================================
+function showRandomOrderModal() {
+  let originalNames = []; // ✅ scope compartido entre animaciones
+  let shuffledNames = [];
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalContainer = document.getElementById('modal-container');
+function playRandomAnimation(onComplete) {
+    const animFns = [renderShuffleAnimation, renderSlotAnimation, renderExplosionAnimation];
+    const chosen = animFns[Math.floor(Math.random() * animFns.length)];
+    chosen(onComplete);
+  }
+
+  function renderShuffleAnimation(onComplete) {
+    const names = shuffledNames || [];
+    modalContainer.innerHTML = `
+      <div id="shuffle-stage" style="position:relative;height:220px;overflow:hidden;border-radius:10px;background:rgba(0,0,0,0.2);">
+      </div>
+      <p style="text-align:center;color:var(--neon-cyan);font-family:'Orbitron',sans-serif;font-size:0.9rem;margin-top:1rem;letter-spacing:2px;" id="shuffle-msg">Barajando...</p>
+    `;
+    const stage = document.getElementById('shuffle-stage');
+    const msgEl = document.getElementById('shuffle-msg');
+    const W = stage.offsetWidth;
+    const H = stage.offsetHeight;
+
+    const cards = names.map((name, i) => {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;width:140px;height:38px;background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;color:var(--text-primary);transition:none;`;
+      el.textContent = name;
+      const startX = 20 + (i % 2) * (W - 160);
+      const startY = 15 + Math.floor(i / 2) * 55;
+      el.style.left = startX + 'px';
+      el.style.top = startY + 'px';
+      stage.appendChild(el);
+      return el;
+    });
+
+    const cx = W / 2 - 70;
+    const cy = H / 2 - 19;
+
+    // FASE 1: ir al centro
+    setTimeout(() => {
+      cards.forEach((el, i) => {
+        el.style.transition = 'all 0.35s ease-in';
+        el.style.left = (cx + (i - cards.length/2) * 5) + 'px';
+        el.style.top = (cy + (i - cards.length/2) * 3) + 'px';
+        el.style.transform = `rotate(${(i - cards.length/2) * 8}deg)`;
+      });
+    }, 100);
+
+    // FASE 2: mezcla rápida
+    let mixFrame = 0;
+    const mixInterval = setInterval(() => {
+      cards.forEach((el, i) => {
+        el.style.transition = 'all 0.08s ease';
+        el.style.left = (cx + (Math.random()-0.5)*30 + (i-cards.length/2)*4) + 'px';
+        el.style.top = (cy + (Math.random()-0.5)*20 + (i-cards.length/2)*3) + 'px';
+        el.style.transform = `rotate(${(Math.random()-0.5)*25}deg)`;
+      });
+      mixFrame++;
+      if (mixFrame >= 6) clearInterval(mixInterval);
+    }, 100);
+
+    // FASE 3: volar a posición final
+    setTimeout(() => {
+      if (msgEl) msgEl.textContent = '¡Listo!';
+      cards.forEach((_, i) => {
+        const originalIndex = i;
+        const el = cards[originalIndex];
+        setTimeout(() => {
+          el.style.transition = 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+          el.style.left = (W/2 - 70) + 'px';
+          el.style.top = (10 + i * 48) + 'px';
+          el.style.transform = 'rotate(0deg)';
+        }, i * 100);
+      });
+      setTimeout(onComplete, cards.length * 100 + 500);
+    }, 900);
+  }
+
+  function renderSlotAnimation(onComplete) {
+    const names = originalNames || [];
+    const slots = names.map((_, i) => i + 1).slice(0, names.length);
+
+    modalContainer.innerHTML = `
+      <h2 style="font-family:'Orbitron',sans-serif;color:var(--neon-cyan);margin-bottom:1rem;font-size:1.1rem;">🎰 Sorteando...</h2>
+      <div id="slots-container" style="background:rgba(0,0,0,0.2);border-radius:10px;padding:1rem;"></div>
+    `;
+
+    const container = document.getElementById('slots-container');
+    container.innerHTML = names.map((_, i) => `
+      <div style="display:flex;align-items:center;gap:0.8rem;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+        <span style="font-family:'Orbitron',sans-serif;font-size:0.9rem;color:var(--text-secondary);min-width:1.5rem;">${i+1}</span>
+        <span id="slot-${i}" style="font-size:0.95rem;color:var(--text-secondary);">---</span>
+      </div>
+    `).join('');
+
+    names.forEach((finalName, i) => {
+      let ticks = 0;
+      const maxTicks = 12 + i * 8;
+      setTimeout(() => {
+        const iv = setInterval(() => {
+          const el = document.getElementById(`slot-${i}`);
+          if (el) el.textContent = names[Math.floor(Math.random() * names.length)];
+          ticks++;
+          if (ticks >= maxTicks) {
+            clearInterval(iv);
+            if (el) {
+              el.textContent = finalName;
+              el.style.color = i === 0 ? 'var(--neon-cyan)' : i === 1 ? 'var(--neon-magenta)' : 'var(--text-primary)';
+              el.style.fontWeight = '600';
+            }
+          }
+        }, 60);
+      }, i * 400);
+    });
+
+    setTimeout(onComplete, names.length * 400 + 800);
+  }
+
+  function renderExplosionAnimation(onComplete) {
+    const names = shuffledNames || [];
+    modalContainer.innerHTML = `
+      <div id="exp-stage" style="position:relative;height:${Math.max(260, names.length * 46 + 20)}px;overflow:hidden;border-radius:10px;background:rgba(0,0,0,0.2);">
+      </div>
+      <p style="text-align:center;color:var(--neon-cyan);font-family:'Orbitron',sans-serif;font-size:0.9rem;margin-top:1rem;letter-spacing:2px;" id="exp-msg">Sorteando...</p>
+    `;
+    const stage = document.getElementById('exp-stage');
+    const msgEl = document.getElementById('exp-msg');
+    const W = stage.offsetWidth;
+    const H = stage.offsetHeight;
+    const cardW = 140; const cardH = 36;
+    const cx = W/2 - cardW/2;
+    const cy = H/2 - cardH/2;
+    const floor = H - cardH - 5;
+
+    const physics = names.map(() => {
+      const angle = (Math.random() * 260 - 130) * Math.PI / 180;
+      const speed = 7 + Math.random() * 6;
+      return { x: cx, y: cy, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - 5, rot: 0, vrot: (Math.random()-0.5)*15, settled: false, settling: false };
+    });
+
+    const cards = names.map((name, i) => {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;width:${cardW}px;height:${cardH}px;background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:0.82rem;color:var(--text-primary);opacity:0;`;
+      el.textContent = name;
+      el.style.left = cx + 'px';
+      el.style.top = cy + 'px';
+      stage.appendChild(el);
+      return el;
+    });
+
+    // Flash
+    const flash = document.createElement('div');
+    flash.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:${cardW}px;height:${cardH}px;border-radius:10px;background:var(--neon-cyan);opacity:0.6;transition:all 0.25s ease;pointer-events:none;`;
+    stage.appendChild(flash);
+    setTimeout(() => { flash.style.opacity='0'; flash.style.transform='scale(2.5)'; }, 30);
+
+    setTimeout(() => {
+      cards.forEach(el => { el.style.opacity = '1'; });
+      let frame = 0;
+      const gravity = 0.55; const bounce = 0.35; const friction = 0.8;
+
+      const loop = setInterval(() => {
+        frame++;
+        let allSettled = true;
+        physics.forEach((p, i) => {
+          if (p.settled) return;
+          allSettled = false;
+          p.vy += gravity; p.x += p.vx; p.y += p.vy; p.rot += p.vrot;
+          if (p.y >= floor) {
+            p.y = floor; p.vy *= -bounce; p.vx *= friction; p.vrot *= 0.5;
+            if (Math.abs(p.vy) < 1.2 && !p.settling) {
+              p.settling = true;
+              setTimeout(() => { p.settled = true; }, 80);
+            }
+          }
+          if (p.x < 0) { p.x=0; p.vx*=-0.4; }
+          if (p.x+cardW > W) { p.x=W-cardW; p.vx*=-0.4; }
+          cards[i].style.transform = `rotate(${p.rot}deg)`;
+          cards[i].style.left = p.x + 'px';
+          cards[i].style.top = p.y + 'px';
+        });
+        if (allSettled || frame > 120) {
+          clearInterval(loop);
+          if (msgEl) msgEl.textContent = '¡Listo!';
+          setTimeout(() => {
+            const finalX = W/2 - cardW/2;
+            cards.forEach((el, i) => {
+              setTimeout(() => {
+                el.style.transition = 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+                el.style.left = finalX + 'px';
+                el.style.top = (8 + i * 46) + 'px';
+                el.style.transform = 'rotate(0deg)';
+                el.textContent = `${i + 1}. ${names[i]}`;
+                el.style.color = i === 0 ? 'var(--neon-cyan)' : i === 1 ? 'var(--neon-magenta)' : 'var(--text-primary)';
+                el.style.borderColor = i === 0 ? 'var(--neon-cyan)' : i === 1 ? 'var(--neon-magenta)' : 'var(--glass-border)';
+              }, i * 100);
+            });
+            setTimeout(onComplete, cards.length * 100 + 500);
+          }, 200);
+        }
+      }, 16);
+    }, 150);
+  }
+
+  function renderInput() {
+    modalContainer.innerHTML = `
+      <h2 style="font-family: 'Orbitron', sans-serif; color: var(--neon-cyan); margin-bottom: 1.5rem;">
+        🎲 Orden Aleatorio
+      </h2>
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--neon-cyan); margin-bottom: 0.5rem; text-transform: uppercase;">
+          Nombres (uno por línea)
+        </label>
+        <textarea id="random-names-input" placeholder="Ej:&#10;Equipo Alpha&#10;Equipo Beta&#10;Equipo Gamma"
+                  style="width: 100%; height: 180px; padding: 0.9rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text-primary); font-size: 1rem; resize: vertical; font-family: inherit;"></textarea>
+      </div>
+      <div style="display: flex; gap: 1rem;">
+        <button id="confirm-random-order" style="flex: 1; padding: 1rem; background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta)); border: none; border-radius: 10px; color: #0a0e27; font-family: 'Orbitron', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer;">
+          🎲 Ordenar
+        </button>
+        <button id="cancel-modal" style="flex: 1; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid var(--neon-magenta); border-radius: 10px; color: var(--neon-magenta); font-size: 1rem; font-weight: 600; cursor: pointer;">
+          Cerrar
+        </button>
+      </div>
+    `;
+
+    document.getElementById('confirm-random-order').onclick = () => {
+      const input = document.getElementById('random-names-input').value.trim();
+      if (!input) { showNotification('⚠️ Ingresa al menos un nombre', 'warning'); return; }
+      const names = input.split('\n').map(n => n.trim()).filter(n => n !== '');
+      if (names.length < 2) { showNotification('⚠️ Ingresa al menos 2 nombres', 'warning'); return; }
+
+      const shuffled = [...names];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const state = shuffled.map(name => ({ name, done: false }));
+
+      originalNames = names;
+      shuffledNames = shuffled;
+      playRandomAnimation(() => renderResult(state, names));
+      // ✅ Mostrar animación antes del resultado
+    };
+
+    document.getElementById('cancel-modal').onclick = closeModal;
+  }
+
+ function renderResult(state, originalNames) {
+    const rankColors = [
+      'var(--neon-cyan)',
+      'var(--neon-magenta)',
+    ];
+
+    // ✅ 2 columnas si hay más de 5 pendientes
+    const useGrid = state.length > 5;
+
+    modalContainer.innerHTML = `
+      <style>
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .rank-item {
+          opacity: 0;
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          padding: ${useGrid ? '0.5rem 0.7rem' : '0.7rem 1rem'};
+          margin-bottom: 0.4rem;
+          border-radius: 10px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .rank-item:hover { transform: translateX(4px); background: rgba(0,240,255,0.05); }
+        .rank-number { font-family: 'Orbitron', sans-serif; font-size: ${useGrid ? '1rem' : '1.2rem'}; font-weight: 900; min-width: 1.8rem; text-align: center; }
+        .rank-name { font-size: ${useGrid ? '0.85rem' : '1rem'}; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rank-grid { display: grid; grid-template-columns: ${useGrid ? '1fr 1fr' : '1fr'}; gap: 0 0.8rem; }
+      </style>
+
+      <h2 style="font-family: 'Orbitron', sans-serif; color: var(--neon-cyan); margin-bottom: 0.3rem; font-size: 1.2rem;">
+        🎲 Orden Aleatorio
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1rem;">
+        ${state.length} participantes
+      </p>
+
+      <div id="rank-list">
+        <div class="rank-grid">
+           ${state.map((item, index) => `
+            <div class="rank-item" id="rank-item-${state.indexOf(item)}" style="border-left: 3px solid ${rankColors[index] || 'var(--glass-border)'};">
+              <span class="rank-number" style="color: ${rankColors[index] || 'var(--text-secondary)'};">
+                ${index + 1}
+              </span>
+              <span class="rank-name" style="color: ${rankColors[index] || 'var(--text-primary)'};">${item.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.8rem; margin-top: 1rem;">
+        <button id="reshuffle-btn" style="flex: 1; padding: 0.8rem; background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta)); border: none; border-radius: 10px; color: #0a0e27; font-family: 'Orbitron', sans-serif; font-size: 0.9rem; font-weight: 700; cursor: pointer;">
+          🔀 Volver a ordenar
+        </button>
+        <button id="edit-names-btn" style="flex: 1; padding: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid var(--neon-cyan); border-radius: 10px; color: var(--neon-cyan); font-size: 0.9rem; font-weight: 600; cursor: pointer;">
+          ✏️ Editar nombres
+        </button>
+      </div>
+    `;
+
+    // Animar entrada
+    state.forEach((item, index) => {
+      setTimeout(() => {
+        const el = document.getElementById(`rank-item-${state.indexOf(item)}`);
+        if (el) el.style.animation = 'slideDown 0.25s ease forwards';
+      }, index * 80);
+    });
+
+
+    document.getElementById('reshuffle-btn').onclick = () => {
+      const reshuffled = [...state];
+      for (let i = reshuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [reshuffled[i], reshuffled[j]] = [reshuffled[j], reshuffled[i]];
+      }
+      playRandomAnimation(() => renderResult(reshuffled, originalNames));
+    };
+
+    document.getElementById('edit-names-btn').onclick = () => {
+      renderInput();
+      setTimeout(() => {
+        document.getElementById('random-names-input').value = originalNames.join('\n');
+      }, 0);
+    };
+  }
+
+  modalOverlay.classList.remove('hidden');
+  renderInput();
+
+  modalOverlay.onclick = (e) => {
+    if (e.target.id === 'modal-overlay') closeModal();
+  };
+}
 // ============================================
 // TOGGLE VIEW (Cards ↔ Table)
 // ============================================
@@ -2959,6 +3432,15 @@ function showAddXpToPartyModal() {
       Selecciona varios alumnos para otorgarles XP
     </p>
     
+     <!-- ✅ TOGGLE SUMAR/RESTAR -->
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); padding: 0.4rem; border-radius: 10px;">
+      <button id="mode-add" style="flex: 1; padding: 0.6rem; background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta)); border: none; border-radius: 8px; color: #0a0e27; font-weight: 700; cursor: pointer;">
+        ➕ Sumar
+      </button>
+      <button id="mode-remove" style="flex: 1; padding: 0.6rem; background: transparent; border: none; border-radius: 8px; color: var(--text-secondary); font-weight: 700; cursor: pointer;">
+        ➖ Restar
+      </button>
+    </div>
     <!-- Filtro de guild -->
     <div style="margin-bottom: 1rem;">
       <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--neon-cyan); margin-bottom: 0.5rem; text-transform: uppercase;">
@@ -3026,6 +3508,25 @@ function showAddXpToPartyModal() {
   let selectedStudents = new Set();
   let currentGuildFilter = '';
   let currentSearchTerm = '';
+
+  let isRemoving = false;
+
+  document.getElementById('mode-add').onclick = () => {
+    isRemoving = false;
+    document.getElementById('mode-add').style.background = 'linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta))';
+    document.getElementById('mode-add').style.color = '#0a0e27';
+    document.getElementById('mode-remove').style.background = 'transparent';
+    document.getElementById('mode-remove').style.color = 'var(--text-secondary)';
+  };
+
+  document.getElementById('mode-remove').onclick = () => {
+    isRemoving = true;
+    document.getElementById('mode-remove').style.background = 'linear-gradient(135deg, #ff4757, #ff6348)';
+    document.getElementById('mode-remove').style.color = 'white';
+    document.getElementById('mode-add').style.background = 'transparent';
+    document.getElementById('mode-add').style.color = 'var(--text-secondary)';
+  };
+
   
   // ✅ FUNCIÓN PARA MANEJAR CLICKS EN CHECKBOXES (USANDO DELEGACIÓN DE EVENTOS)
   function handleCheckboxChange(e) {
@@ -3150,18 +3651,17 @@ function showAddXpToPartyModal() {
       showNotification('⚠️ Selecciona al menos un alumno', 'warning');
       return;
     }
-    
     if (!amount || amount <= 0) {
       showNotification('⚠️ Ingresa una cantidad válida', 'warning');
       return;
     }
-    
     if (!reason) {
       showNotification('⚠️ Ingresa una razón', 'warning');
       return;
     }
     
-    await addXpToParty(Array.from(selectedStudents), amount, reason);
+    const finalAmount = isRemoving ? -amount : amount;  // ✅ aquí está la magia
+    await addXpToParty(Array.from(selectedStudents), finalAmount, reason);
     closeModal();
   };
   
